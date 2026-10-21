@@ -1,0 +1,51 @@
+name: drift-check
+on:
+  push: { branches: [main] }
+  pull_request:
+  schedule: [{ cron: "*/30 * * * *" }]
+  workflow_dispatch:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt pytest
+      - run: python -m pytest -q
+
+  drift-check:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - run: docker build -t drift-demo-app:1.0 demo_app
+
+      - name: Converge a fresh runner to the state in Git
+        run: python -m drift.cli reconcile
+      - name: Gate 1, clean state must report no drift
+        run: python -m drift.cli check
+
+      - name: Inject drift on purpose (self-test)
+        run: |
+          python -m drift.cli inject web stop
+          python -m drift.cli inject shop-api env APP_ENV=debug
+      - name: Gate 2, drift must be detected (non-zero exit expected)
+        id: detect
+        continue-on-error: true
+        run: python -m drift.cli check --report drift-report.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: drift-report, path: drift-report.md }
+      - name: Fail if detection silently passed
+        if: steps.detect.outcome != 'failure'
+        run: echo "Drift was injected but not detected" && exit 1
+
+      - name: Reconcile and verify recovery
+        run: |
+          python -m drift.cli reconcile
+          python -m drift.cli check

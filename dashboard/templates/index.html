@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drift Control Room</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body{background:#0b1220}
+  .pulse-red{animation:pr 1.4s infinite}
+  @keyframes pr{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.45)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+</style>
+</head>
+<body class="text-slate-200 min-h-screen font-sans">
+<header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur sticky top-0 z-10">
+  <div class="max-w-7xl mx-auto px-5 py-3 flex flex-wrap items-center gap-4">
+    <div>
+      <h1 class="text-xl font-bold tracking-tight">Drift Control Room</h1>
+      <p class="text-xs text-slate-400">Git is the source of truth · <span id="conn">connecting…</span></p>
+    </div>
+    <div id="summary" class="flex flex-wrap gap-2"></div>
+    <div class="ml-auto flex items-center gap-3">
+      <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
+        <input id="autoheal" type="checkbox" class="sr-only peer">
+        <span class="w-10 h-5 rounded-full bg-slate-700 peer-checked:bg-emerald-500 relative transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-5"></span>
+        Auto-heal
+      </label>
+      <button id="btnPlan" class="px-3 py-1.5 rounded-lg border border-slate-600 hover:bg-slate-800 text-sm">Plan (dry run)</button>
+      <button id="btnApply" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold">Reconcile</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto p-5 grid lg:grid-cols-3 gap-5">
+  <section class="lg:col-span-2 space-y-5">
+    <div id="cards" class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+
+    <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+      <h2 class="font-semibold mb-2">Plan</h2>
+      <div id="plan" class="mono text-sm text-slate-400">Press “Plan” to see what a reconcile would change. Nothing is touched.</div>
+    </div>
+
+    <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold">Diff viewer <span class="text-xs text-slate-500 font-normal">Desired (Git) vs Actual (Docker)</span></h2>
+        <div id="tabs" class="flex gap-1"></div>
+      </div>
+      <div id="diff" class="mono text-sm"></div>
+    </div>
+  </section>
+
+  <aside class="space-y-5">
+    <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-semibold">Live app <span id="previewName" class="text-xs text-slate-500 font-normal"></span></h2>
+        <a id="previewLink" target="_blank" class="text-xs text-sky-400 hover:underline"></a>
+      </div>
+      <iframe id="preview" class="w-full h-44 rounded-lg bg-white"></iframe>
+    </div>
+
+    <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-semibold">Event timeline</h2>
+        <div class="text-xs space-x-2">
+          <a href="/report?format=md" class="text-sky-400 hover:underline">⬇ Markdown</a>
+          <a href="/report?format=json" class="text-sky-400 hover:underline">⬇ JSON</a>
+        </div>
+      </div>
+      <ul id="timeline" class="space-y-1.5 max-h-80 overflow-auto text-sm"></ul>
+    </div>
+
+    <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+      <h2 class="font-semibold mb-2">Git &amp; CI</h2>
+      <div id="git" class="text-sm text-slate-400"></div>
+      <hr class="border-slate-800 my-3">
+      <div id="ci" class="text-sm text-slate-400"></div>
+    </div>
+  </aside>
+</main>
+<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-slate-800 border border-slate-600 text-sm hidden"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "—").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const BADGE = {
+  in_sync: ["In sync", "bg-emerald-500/15 text-emerald-300 ring-emerald-500/40"],
+  drifted: ["Drifted", "bg-red-500/15 text-red-300 ring-red-500/40"],
+  missing: ["Missing", "bg-slate-500/20 text-slate-300 ring-slate-500/40"]};
+const KIND = {detected:"text-red-400", reconciled:"text-emerald-400", injected:"text-amber-400",
+              action:"text-sky-400", plan:"text-violet-400", config:"text-slate-400", error:"text-red-500"};
+let state = null, selected = null, previewSrc = "";
+
+const api = async (p, o) => (await fetch(p, o)).json();
+const post = (p, b) => api(p, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(b||{})});
+function toast(m){ const t=$("#toast"); t.textContent=m; t.classList.remove("hidden"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.add("hidden"),3500); }
+
+async function refresh(){
+  try { state = await api("/status"); $("#conn").textContent = "live · polling every 2s"; render(); }
+  catch(e){ $("#conn").textContent = "API unreachable"; }
+}
+
+function card(r){
+  const [label, cls] = BADGE[r.status];
+  const border = r.status==="drifted" ? "border-red-500/60 pulse-red" : r.status==="missing" ? "border-slate-600" : "border-emerald-500/30";
+  const ports = Object.values(r.desired.ports).map(h=>`<a class="underline decoration-dotted" target="_blank" href="http://${location.hostname}:${h}">:${h}</a>`).join(" ") || "none";
+  const ch = r.changes.slice(0,2).map(c=>`<li class="truncate">${esc(c.field)}: <span class="text-red-300">${esc(c.actual)}</span> → <span class="text-emerald-300">${esc(c.desired)}</span></li>`).join("")
+           + (r.changes.length>2 ? `<li>+${r.changes.length-2} more</li>` : "");
+  const btn = (k, t) => `<button onclick="inject('${r.name}','${k}')" class="px-2 py-1 rounded border border-slate-700 hover:border-amber-500 hover:text-amber-300 text-xs">${t}</button>`;
+  return `<div class="rounded-xl border ${border} bg-slate-900 p-4">
+    <div class="flex items-center justify-between">
+      <div class="font-semibold">${esc(r.name)}</div>
+      <span class="text-xs px-2 py-0.5 rounded-full ring-1 ${cls}">${label}</span>
+    </div>
+    <div class="mono text-xs text-slate-400 mt-1 truncate">${esc(r.desired.image)}</div>
+    <div class="text-xs text-slate-500 mt-1">ports: ${ports}</div>
+    <ul class="mono text-xs mt-2 min-h-[2.5rem] text-slate-400">${ch || '<li class="text-slate-600">matches Git</li>'}</ul>
+    ${r.drift_for!=null ? `<div class="text-xs text-red-300 mt-1">drifting for ${r.drift_for}s</div>` : ""}
+    <div class="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-800">
+      <span class="text-[10px] uppercase tracking-wider text-slate-600 w-full">Inject drift</span>
+      ${btn("stop","Stop")}${r.desired.ports && Object.keys(r.desired.ports).length ? btn("port","Change port") : ""}${btn("env","Edit env")}${btn("delete","Delete")}
+    </div></div>`;
+}
+
+function render(){
+  const s = state.summary;
+  $("#summary").innerHTML = [
+    [`${s.in_sync} in sync`,"bg-emerald-500/15 text-emerald-300"],
+    [`${s.drifted} drifted`,"bg-red-500/15 text-red-300"],
+    [`${s.missing} missing`,"bg-slate-500/20 text-slate-300"],
+    [s.mttr!=null ? `MTTR ${s.mttr}s` : "MTTR –","bg-sky-500/15 text-sky-300"]
+  ].map(([t,c])=>`<span class="text-xs px-2.5 py-1 rounded-full ${c}">${t}</span>`).join("");
+  $("#autoheal").checked = state.autoheal;
+  $("#cards").innerHTML = state.resources.map(card).join("");
+
+  if(!selected || !state.resources.find(r=>r.name===selected)){
+    selected = (state.resources.find(r=>r.status!=="in_sync")||state.resources[0]||{}).name;
+  }
+  $("#tabs").innerHTML = state.resources.map(r=>`<button onclick="selected='${r.name}';render()" class="px-2.5 py-1 rounded-md text-xs ${r.name===selected?'bg-slate-700 text-white':'text-slate-400 hover:bg-slate-800'}">${esc(r.name)}${r.status!=="in_sync"?' •':''}</button>`).join("");
+  const cur = state.resources.find(r=>r.name===selected);
+  $("#diff").innerHTML = cur ? `<div class="grid grid-cols-2 text-xs text-slate-500 mb-1"><div>Desired (Git)</div><div>Actual (Docker)</div></div>` +
+    cur.rows.map(x=>`<div class="grid grid-cols-2 gap-1 mb-1">
+      <div class="px-2 py-1 rounded ${x.same?'bg-slate-800/40':'bg-emerald-500/15 text-emerald-200'}">${esc(x.key)}: ${esc(x.desired)}</div>
+      <div class="px-2 py-1 rounded ${x.same?'bg-slate-800/40':'bg-red-500/15 text-red-200'}">${x.actual===null?'<i>absent</i>':esc(x.key)+': '+esc(x.actual)}</div></div>`).join("") : "";
+
+  $("#timeline").innerHTML = [...state.events].reverse().slice(0,40).map(e=>
+    `<li class="flex gap-2"><span class="mono text-xs text-slate-600 pt-0.5">${new Date(e.ts*1000).toLocaleTimeString()}</span>
+     <span><b class="${KIND[e.kind]||''}">${e.kind}</b> ${e.resource?`<span class="text-slate-300">${esc(e.resource)}</span>`:""} <span class="text-slate-400">${esc(e.message)}</span></span></li>`).join("")
+     || '<li class="text-slate-600">No events yet. Inject some drift.</li>';
+
+  const pv = state.resources.find(r=>r.name===state.preview);
+  if(pv){
+    const port = Object.values(pv.desired.ports)[0];
+    const src = `http://${location.hostname}:${port}`;
+    if(src!==previewSrc){ previewSrc=src; $("#preview").src=src; $("#previewLink").href=src; $("#previewLink").textContent=`open :${port}`; $("#previewName").textContent=pv.name; }
+  }
+}
+
+async function inject(name, kind){
+  const body = {name, kind};
+  if(kind==="env"){
+    const v = prompt("Set an env var by hand (KEY=VALUE)", name==="shop-api" ? "APP_ENV=debug" : "DEBUG=true");
+    if(!v || !v.includes("=")) return;
+    const [k, ...rest] = v.split("="); body.key = k; body.value = rest.join("=");
+  }
+  const r = await post("/inject", body);
+  toast(r.error ? "Error: "+r.error : "Injected: "+r.message); refresh();
+}
+
+$("#btnPlan").onclick = async () => {
+  const {actions} = await post("/plan");
+  $("#plan").innerHTML = actions.length ? actions.map(a=>`<div class="mb-1"><span class="text-amber-300">~ ${a.action}</span> <b class="text-slate-200">${esc(a.name)}</b><div class="text-xs text-slate-500 pl-4">${a.reason.map(esc).join("<br>")}</div></div>`).join("")
+    : '<span class="text-emerald-400">No changes. Running state matches Git.</span>';
+  refresh();
+};
+$("#btnApply").onclick = async () => {
+  const {actions, error} = await post("/reconcile");
+  toast(error ? error : actions.length ? `Reconciled ${actions.length} resource(s)` : "Already in sync");
+  $("#plan").textContent = "Applied. Check the timeline for time to recovery."; refresh();
+};
+$("#autoheal").onchange = e => post("/autoheal", {enabled:e.target.checked}).then(()=>toast("Auto-heal "+(e.target.checked?"ON":"OFF")));
+
+async function side(){
+  const g = await api("/git");
+  $("#git").innerHTML = g.available
+    ? `<div>Desired state at <span class="mono text-sky-300">${esc(g.commit)}</span> ${g.dirty?'<span class="text-amber-300 text-xs">(uncommitted edits)</span>':''}</div><div class="text-xs mt-1">${esc(g.subject)} · ${esc(g.author)}, ${esc(g.when)}</div>`
+    : "Not a git checkout inside the container.";
+  const c = await api("/ci");
+  const col = c.conclusion==="success"?"text-emerald-400":c.conclusion==="failure"?"text-red-400":"text-amber-300";
+  $("#ci").innerHTML = c.available
+    ? `<div>Latest run: <a class="text-sky-400 hover:underline" target="_blank" href="${esc(c.url)}">${esc(c.name)}</a> <b class="${col}">${esc(c.conclusion||c.status)}</b></div><div class="text-xs mt-1">${esc(c.repo)} @ ${esc(c.sha)}</div>`
+    : esc(c.hint || "CI status unavailable");
+}
+refresh(); setInterval(refresh, 2000); side(); setInterval(side, 20000);
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# Desired state: the single source of truth for the running stack.
+# Change infrastructure by committing to THIS file, never by hand on the host.
+resources:
+  web:
+    image: nginx:1.27-alpine
+    ports: {"80/tcp": 8081}
+    env: {}
+    running: true
+
+  cache:
+    image: redis:7-alpine
+    ports: {}
+    env: {}
+    running: true
+
+  shop-api:                       # the example application (see demo_app/)
+    image: drift-demo-app:1.0
+    ports: {"5000/tcp": 8082}
+    env:
+      APP_ENV: production
+      FEATURE_NEW_CHECKOUT: "off"
+      LOG_LEVEL: info
+    running: true

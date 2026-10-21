@@ -1,0 +1,26 @@
+# One command demo:  docker compose up --build   ->  http://localhost:5000
+services:
+  demo-app-image:            # builds drift-demo-app:1.0 then exits; the engine runs the containers itself
+    build: ./demo_app
+    image: drift-demo-app:1.0
+    entrypoint: ["true"]
+    restart: "no"
+
+  dashboard:
+    build: .
+    container_name: drift-dashboard
+    depends_on:
+      demo-app-image:
+        condition: service_completed_successfully
+    ports: ["5000:5000"]
+    volumes:
+      # SECURITY TRADE-OFF: the Docker socket is root-equivalent on the host.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Repo mounted read-only: desired state + git history come from the real checkout.
+      - ./:/repo:ro
+    environment:
+      DESIRED_STATE: /repo/desired/state.yaml
+      REPO_PATH: /repo
+      BOOTSTRAP: "1"
+      GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
