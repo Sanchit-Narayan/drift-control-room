@@ -12,7 +12,7 @@ services:
     depends_on:
       demo-app-image:
         condition: service_completed_successfully
-    ports: ["5000:5000"]
+    ports: ["5050:5000"]
     volumes:
       # SECURITY TRADE-OFF: the Docker socket is root-equivalent on the host.
       - /var/run/docker.sock:/var/run/docker.sock
