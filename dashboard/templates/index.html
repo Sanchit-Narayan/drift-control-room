@@ -3,89 +3,124 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Drift Control Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  body{background:#0b1220}
-  .pulse-red{animation:pr 1.4s infinite}
-  @keyframes pr{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.45)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  body{
+    background:#080d18;
+    background-image:
+      radial-gradient(1200px 600px at 10% -10%, rgba(56,189,248,.07), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(16,185,129,.06), transparent 60%);
+    background-attachment:fixed;
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+  .panel{background:rgba(15,23,42,.6);border:1px solid rgba(148,163,184,.1);border-radius:1rem;box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 10px 30px -15px rgba(0,0,0,.6)}
+  .eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:600}
+  .pulse-red{animation:pr 2.4s ease-in-out infinite}
+  @keyframes pr{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,.28)}50%{box-shadow:0 0 0 6px rgba(248,113,113,0)}}
+  @media (prefers-reduced-motion:reduce){.pulse-red{animation:none}}
+  .scroll-soft{scrollbar-width:thin;scrollbar-color:#334155 transparent}
+  .scroll-soft::-webkit-scrollbar{width:6px}.scroll-soft::-webkit-scrollbar-thumb{background:#334155;border-radius:9999px}
 </style>
 </head>
-<body class="text-slate-200 min-h-screen font-sans">
-<header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur sticky top-0 z-10">
-  <div class="max-w-7xl mx-auto px-5 py-3 flex flex-wrap items-center gap-4">
-    <div>
-      <h1 class="text-xl font-bold tracking-tight">Drift Control Room</h1>
-      <p class="text-xs text-slate-400">Git is the source of truth · <span id="conn">connecting…</span></p>
+<body class="text-slate-200 min-h-screen">
+<header class="border-b border-white/5 bg-slate-950/70 backdrop-blur-md sticky top-0 z-10">
+  <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+    <div class="flex items-center gap-3">
+      <div class="h-9 w-9 rounded-xl bg-gradient-to-br from-emerald-400 to-sky-500 grid place-items-center shadow-lg shadow-emerald-500/20">
+        <svg viewBox="0 0 24 24" class="h-5 w-5 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+      </div>
+      <div>
+        <h1 class="text-base font-semibold tracking-tight text-white leading-tight">Drift Control Room</h1>
+        <p class="text-xs text-slate-400 mt-0.5">Git is the source of truth <span class="text-slate-600 mx-1">·</span> <span id="conn">connecting…</span></p>
+      </div>
     </div>
-    <div id="summary" class="flex flex-wrap gap-2"></div>
-    <div class="ml-auto flex items-center gap-3">
-      <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
+    <div class="ml-auto flex flex-wrap items-center gap-3">
+      <label class="flex items-center gap-2.5 text-sm text-slate-300 cursor-pointer select-none pr-2">
         <input id="autoheal" type="checkbox" class="sr-only peer">
-        <span class="w-10 h-5 rounded-full bg-slate-700 peer-checked:bg-emerald-500 relative transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-5"></span>
+        <span class="w-9 h-5 rounded-full bg-slate-700 peer-checked:bg-emerald-500 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-400/50 relative transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-4"></span>
         Auto-heal
       </label>
-      <button id="btnPlan" class="px-3 py-1.5 rounded-lg border border-slate-600 hover:bg-slate-800 text-sm">Plan (dry run)</button>
-      <button id="btnApply" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold">Reconcile</button>
+      <button id="btnPlan" class="px-4 py-2 rounded-lg border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] text-sm font-medium text-slate-200 transition-colors">Plan (dry run)</button>
+      <button id="btnApply" class="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition-colors">Reconcile</button>
     </div>
   </div>
 </header>
 
-<main class="max-w-7xl mx-auto p-5 grid lg:grid-cols-3 gap-5">
-  <section class="lg:col-span-2 space-y-5">
-    <div id="cards" class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+<main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+  <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
 
-    <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
-      <h2 class="font-semibold mb-2">Plan</h2>
-      <div id="plan" class="mono text-sm text-slate-400">Press “Plan” to see what a reconcile would change. Nothing is touched.</div>
+  <div class="grid lg:grid-cols-3 gap-6">
+  <section class="lg:col-span-2 space-y-6">
+    <div>
+      <div class="flex items-baseline justify-between mb-3 px-1">
+        <h2 class="text-sm font-semibold text-slate-300">Resources</h2>
+        <span class="text-xs text-slate-500">Declared in <span class="mono">desired/state.yaml</span></span>
+      </div>
+      <div id="cards" class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
     </div>
 
-    <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="font-semibold">Diff viewer <span class="text-xs text-slate-500 font-normal">Desired (Git) vs Actual (Docker)</span></h2>
-        <div id="tabs" class="flex gap-1"></div>
+    <div class="panel p-6">
+      <h2 class="text-sm font-semibold text-white">Plan</h2>
+      <p class="text-xs text-slate-500 mt-0.5 mb-4">What a reconcile would change</p>
+      <div id="plan" class="mono text-[13px] text-slate-400 leading-relaxed">Press “Plan” to see what a reconcile would change. Nothing is touched.</div>
+    </div>
+
+    <div class="panel p-6">
+      <div class="flex flex-wrap items-start justify-between gap-3 mb-5">
+        <div>
+          <h2 class="text-sm font-semibold text-white">Diff viewer</h2>
+          <p class="text-xs text-slate-500 mt-0.5">Desired (Git) vs Actual (Docker)</p>
+        </div>
+        <div id="tabs" class="flex flex-wrap gap-1 p-1 rounded-lg bg-slate-950/60 border border-white/5"></div>
       </div>
-      <div id="diff" class="mono text-sm"></div>
+      <div id="diff" class="mono text-[13px]"></div>
     </div>
   </section>
 
-  <aside class="space-y-5">
-    <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-semibold">Live app <span id="previewName" class="text-xs text-slate-500 font-normal"></span></h2>
-        <a id="previewLink" target="_blank" class="text-xs text-sky-400 hover:underline"></a>
+  <aside class="space-y-6">
+    <div class="panel p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-white">Live app <span id="previewName" class="ml-1 text-xs text-slate-500 font-normal mono"></span></h2>
+        <a id="previewLink" target="_blank" class="text-xs font-medium text-sky-400 hover:text-sky-300"></a>
       </div>
-      <iframe id="preview" class="w-full h-44 rounded-lg bg-white"></iframe>
+      <iframe id="preview" class="w-full h-48 rounded-xl bg-white ring-1 ring-white/10"></iframe>
     </div>
 
-    <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-semibold">Event timeline</h2>
-        <div class="text-xs space-x-2">
-          <a href="/report?format=md" class="text-sky-400 hover:underline">⬇ Markdown</a>
-          <a href="/report?format=json" class="text-sky-400 hover:underline">⬇ JSON</a>
+    <div class="panel p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-white">Event timeline</h2>
+        <div class="flex gap-1.5 text-xs">
+          <a href="/report?format=md" class="px-2 py-1 rounded-md border border-white/10 text-slate-300 hover:text-white hover:bg-white/5 transition-colors">⬇ Markdown</a>
+          <a href="/report?format=json" class="px-2 py-1 rounded-md border border-white/10 text-slate-300 hover:text-white hover:bg-white/5 transition-colors">⬇ JSON</a>
         </div>
       </div>
-      <ul id="timeline" class="space-y-1.5 max-h-80 overflow-auto text-sm"></ul>
+      <ul id="timeline" class="space-y-3 max-h-96 overflow-auto text-sm scroll-soft pr-1"></ul>
     </div>
 
-    <div class="rounded-xl border border-slate-800 bg-slate-900 p-4">
-      <h2 class="font-semibold mb-2">Git &amp; CI</h2>
-      <div id="git" class="text-sm text-slate-400"></div>
-      <hr class="border-slate-800 my-3">
-      <div id="ci" class="text-sm text-slate-400"></div>
+    <div class="panel p-5">
+      <h2 class="text-sm font-semibold text-white mb-4">Git &amp; CI</h2>
+      <div class="eyebrow mb-1.5">Desired state</div>
+      <div id="git" class="text-sm text-slate-400 leading-relaxed"></div>
+      <hr class="border-white/5 my-4">
+      <div class="eyebrow mb-1.5">Continuous integration</div>
+      <div id="ci" class="text-sm text-slate-400 leading-relaxed"></div>
     </div>
   </aside>
+  </div>
 </main>
-<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-slate-800 border border-slate-600 text-sm hidden"></div>
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-xl bg-slate-800/95 backdrop-blur border border-white/10 shadow-2xl text-sm text-slate-100 hidden"></div>
 
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "—").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const BADGE = {
-  in_sync: ["In sync", "bg-emerald-500/15 text-emerald-300 ring-emerald-500/40"],
-  drifted: ["Drifted", "bg-red-500/15 text-red-300 ring-red-500/40"],
-  missing: ["Missing", "bg-slate-500/20 text-slate-300 ring-slate-500/40"]};
+  in_sync: ["In sync", "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30"],
+  drifted: ["Drifted", "bg-red-500/10 text-red-300 ring-red-500/30"],
+  missing: ["Missing", "bg-slate-500/15 text-slate-300 ring-slate-500/30"]};
 const KIND = {detected:"text-red-400", reconciled:"text-emerald-400", injected:"text-amber-400",
               action:"text-sky-400", plan:"text-violet-400", config:"text-slate-400", error:"text-red-500"};
 let state = null, selected = null, previewSrc = "";
@@ -101,57 +136,60 @@ async function refresh(){
 
 function card(r){
   const [label, cls] = BADGE[r.status];
-  const border = r.status==="drifted" ? "border-red-500/60 pulse-red" : r.status==="missing" ? "border-slate-600" : "border-emerald-500/30";
-  const ports = Object.values(r.desired.ports).map(h=>`<a class="underline decoration-dotted" target="_blank" href="http://${location.hostname}:${h}">:${h}</a>`).join(" ") || "none";
-  const ch = r.changes.slice(0,2).map(c=>`<li class="truncate">${esc(c.field)}: <span class="text-red-300">${esc(c.actual)}</span> → <span class="text-emerald-300">${esc(c.desired)}</span></li>`).join("")
-           + (r.changes.length>2 ? `<li>+${r.changes.length-2} more</li>` : "");
-  const btn = (k, t) => `<button onclick="inject('${r.name}','${k}')" class="px-2 py-1 rounded border border-slate-700 hover:border-amber-500 hover:text-amber-300 text-xs">${t}</button>`;
-  return `<div class="rounded-xl border ${border} bg-slate-900 p-4">
-    <div class="flex items-center justify-between">
-      <div class="font-semibold">${esc(r.name)}</div>
-      <span class="text-xs px-2 py-0.5 rounded-full ring-1 ${cls}">${label}</span>
+  const border = r.status==="drifted" ? "border-red-500/40 pulse-red" : r.status==="missing" ? "border-slate-600/60" : "border-white/[0.08]";
+  const ports = Object.values(r.desired.ports).map(h=>`<a class="text-sky-400 hover:text-sky-300" target="_blank" href="http://${location.hostname}:${h}">:${h}</a>`).join(" ") || "none";
+  const ch = r.changes.slice(0,2).map(c=>`<li class="truncate">${esc(c.field)}: <span class="text-red-300">${esc(c.actual)}</span> <span class="text-slate-600">→</span> <span class="text-emerald-300">${esc(c.desired)}</span></li>`).join("")
+           + (r.changes.length>2 ? `<li class="text-slate-500">+${r.changes.length-2} more</li>` : "");
+  const btn = (k, t) => `<button onclick="inject('${r.name}','${k}')" class="px-2.5 py-1 rounded-md bg-white/[0.03] border border-white/10 text-slate-300 hover:border-amber-400/60 hover:text-amber-300 hover:bg-amber-400/5 text-xs transition-colors">${t}</button>`;
+  return `<div class="panel ${border} p-5 flex flex-col">
+    <div class="flex items-start justify-between gap-3">
+      <div class="font-semibold text-white truncate">${esc(r.name)}</div>
+      <span class="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ring-1 ${cls}"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>${label}</span>
     </div>
-    <div class="mono text-xs text-slate-400 mt-1 truncate">${esc(r.desired.image)}</div>
+    <div class="mono text-xs text-slate-400 mt-2 truncate">${esc(r.desired.image)}</div>
     <div class="text-xs text-slate-500 mt-1">ports: ${ports}</div>
-    <ul class="mono text-xs mt-2 min-h-[2.5rem] text-slate-400">${ch || '<li class="text-slate-600">matches Git</li>'}</ul>
-    ${r.drift_for!=null ? `<div class="text-xs text-red-300 mt-1">drifting for ${r.drift_for}s</div>` : ""}
-    <div class="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-800">
-      <span class="text-[10px] uppercase tracking-wider text-slate-600 w-full">Inject drift</span>
-      ${btn("stop","Stop")}${r.desired.ports && Object.keys(r.desired.ports).length ? btn("port","Change port") : ""}${btn("env","Edit env")}${btn("delete","Delete")}
+    <ul class="mono text-xs mt-4 min-h-[3.25rem] rounded-lg bg-slate-950/50 border border-white/5 px-3 py-2 space-y-0.5 text-slate-400">${ch || '<li class="text-slate-500">✓ matches Git</li>'}</ul>
+    ${r.drift_for!=null ? `<div class="text-xs text-red-300 mt-2">drifting for ${r.drift_for}s</div>` : ""}
+    <div class="mt-auto pt-4">
+      <div class="flex flex-wrap gap-1.5 pt-4 border-t border-white/5">
+        <span class="eyebrow w-full mb-1">Inject drift</span>
+        ${btn("stop","Stop")}${r.desired.ports && Object.keys(r.desired.ports).length ? btn("port","Change port") : ""}${btn("env","Edit env")}${btn("delete","Delete")}
+      </div>
     </div></div>`;
 }
 
 function render(){
   const s = state.summary;
   $("#summary").innerHTML = [
-    [`${s.in_sync} in sync`,"bg-emerald-500/15 text-emerald-300"],
-    [`${s.drifted} drifted`,"bg-red-500/15 text-red-300"],
-    [`${s.missing} missing`,"bg-slate-500/20 text-slate-300"],
-    [s.mttr!=null ? `MTTR ${s.mttr}s` : "MTTR –","bg-sky-500/15 text-sky-300"]
-  ].map(([t,c])=>`<span class="text-xs px-2.5 py-1 rounded-full ${c}">${t}</span>`).join("");
+    [s.in_sync, "In sync", "text-emerald-300", "bg-emerald-400"],
+    [s.drifted, "Drifted", s.drifted ? "text-red-300" : "text-white", "bg-red-400"],
+    [s.missing, "Missing", "text-white", "bg-slate-400"],
+    [s.mttr!=null ? `${s.mttr}s` : "–", "MTTR", "text-sky-300", "bg-sky-400"]
+  ].map(([v,l,c,d])=>`<div class="panel px-5 py-4"><div class="flex items-center gap-2 text-xs font-medium text-slate-400"><span class="h-2 w-2 rounded-full ${d}"></span>${l}</div><div class="mt-2 text-3xl font-semibold tracking-tight tabular-nums ${c}">${v}</div></div>`).join("");
   $("#autoheal").checked = state.autoheal;
   $("#cards").innerHTML = state.resources.map(card).join("");
 
   if(!selected || !state.resources.find(r=>r.name===selected)){
     selected = (state.resources.find(r=>r.status!=="in_sync")||state.resources[0]||{}).name;
   }
-  $("#tabs").innerHTML = state.resources.map(r=>`<button onclick="selected='${r.name}';render()" class="px-2.5 py-1 rounded-md text-xs ${r.name===selected?'bg-slate-700 text-white':'text-slate-400 hover:bg-slate-800'}">${esc(r.name)}${r.status!=="in_sync"?' •':''}</button>`).join("");
+  $("#tabs").innerHTML = state.resources.map(r=>`<button onclick="selected='${r.name}';render()" class="px-3 py-1 rounded-md text-xs font-medium transition-colors ${r.name===selected?'bg-slate-700/80 text-white shadow':'text-slate-400 hover:text-slate-200'}">${esc(r.name)}${r.status!=="in_sync"?' <span class="text-red-400">•</span>':''}</button>`).join("");
   const cur = state.resources.find(r=>r.name===selected);
-  $("#diff").innerHTML = cur ? `<div class="grid grid-cols-2 text-xs text-slate-500 mb-1"><div>Desired (Git)</div><div>Actual (Docker)</div></div>` +
-    cur.rows.map(x=>`<div class="grid grid-cols-2 gap-1 mb-1">
-      <div class="px-2 py-1 rounded ${x.same?'bg-slate-800/40':'bg-emerald-500/15 text-emerald-200'}">${esc(x.key)}: ${esc(x.desired)}</div>
-      <div class="px-2 py-1 rounded ${x.same?'bg-slate-800/40':'bg-red-500/15 text-red-200'}">${x.actual===null?'<i>absent</i>':esc(x.key)+': '+esc(x.actual)}</div></div>`).join("") : "";
+  $("#diff").innerHTML = cur ? `<div class="grid grid-cols-2 gap-2 eyebrow mb-2 px-1"><div>Desired (Git)</div><div>Actual (Docker)</div></div>` +
+    cur.rows.map(x=>`<div class="grid grid-cols-2 gap-2 mb-1.5">
+      <div class="px-3 py-1.5 rounded-md break-all ${x.same?'bg-white/[0.02] text-slate-400':'bg-emerald-500/10 text-emerald-200 ring-1 ring-inset ring-emerald-500/20'}">${esc(x.key)}: ${esc(x.desired)}</div>
+      <div class="px-3 py-1.5 rounded-md break-all ${x.same?'bg-white/[0.02] text-slate-400':'bg-red-500/10 text-red-200 ring-1 ring-inset ring-red-500/20'}">${x.actual===null?'<i class="text-red-300/70">absent</i>':esc(x.key)+': '+esc(x.actual)}</div></div>`).join("") : "";
 
   $("#timeline").innerHTML = [...state.events].reverse().slice(0,40).map(e=>
-    `<li class="flex gap-2"><span class="mono text-xs text-slate-600 pt-0.5">${new Date(e.ts*1000).toLocaleTimeString()}</span>
-     <span><b class="${KIND[e.kind]||''}">${e.kind}</b> ${e.resource?`<span class="text-slate-300">${esc(e.resource)}</span>`:""} <span class="text-slate-400">${esc(e.message)}</span></span></li>`).join("")
-     || '<li class="text-slate-600">No events yet. Inject some drift.</li>';
+    `<li class="flex gap-3"><span class="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-current ${KIND[e.kind]||'text-slate-500'}"></span>
+     <div class="min-w-0 flex-1"><div class="flex items-baseline gap-2"><b class="font-medium ${KIND[e.kind]||''}">${e.kind}</b> ${e.resource?`<span class="text-slate-200">${esc(e.resource)}</span>`:""}<span class="ml-auto mono text-[11px] text-slate-600 shrink-0">${new Date(e.ts*1000).toLocaleTimeString()}</span></div>
+     <div class="text-slate-400 text-[13px] leading-snug mt-0.5">${esc(e.message)}</div></div></li>`).join("")
+     || '<li class="text-slate-500 text-center py-6">No events yet. Inject some drift.</li>';
 
   const pv = state.resources.find(r=>r.name===state.preview);
   if(pv){
     const port = Object.values(pv.desired.ports)[0];
     const src = `http://${location.hostname}:${port}`;
-    if(src!==previewSrc){ previewSrc=src; $("#preview").src=src; $("#previewLink").href=src; $("#previewLink").textContent=`open :${port}`; $("#previewName").textContent=pv.name; }
+    if(src!==previewSrc){ previewSrc=src; $("#preview").src=src; $("#previewLink").href=src; $("#previewLink").textContent=`open :${port} ↗`; $("#previewName").textContent=pv.name; }
   }
 }
 
@@ -168,7 +206,7 @@ async function inject(name, kind){
 
 $("#btnPlan").onclick = async () => {
   const {actions} = await post("/plan");
-  $("#plan").innerHTML = actions.length ? actions.map(a=>`<div class="mb-1"><span class="text-amber-300">~ ${a.action}</span> <b class="text-slate-200">${esc(a.name)}</b><div class="text-xs text-slate-500 pl-4">${a.reason.map(esc).join("<br>")}</div></div>`).join("")
+  $("#plan").innerHTML = actions.length ? actions.map(a=>`<div class="mb-3 last:mb-0 rounded-lg bg-slate-950/50 border border-white/5 px-3 py-2"><span class="text-amber-300">~ ${a.action}</span> <b class="font-medium text-slate-100">${esc(a.name)}</b><div class="text-xs text-slate-500 pl-4 mt-1">${a.reason.map(esc).join("<br>")}</div></div>`).join("")
     : '<span class="text-emerald-400">No changes. Running state matches Git.</span>';
   refresh();
 };
@@ -182,12 +220,12 @@ $("#autoheal").onchange = e => post("/autoheal", {enabled:e.target.checked}).the
 async function side(){
   const g = await api("/git");
   $("#git").innerHTML = g.available
-    ? `<div>Desired state at <span class="mono text-sky-300">${esc(g.commit)}</span> ${g.dirty?'<span class="text-amber-300 text-xs">(uncommitted edits)</span>':''}</div><div class="text-xs mt-1">${esc(g.subject)} · ${esc(g.author)}, ${esc(g.when)}</div>`
+    ? `<div class="text-slate-300">Commit <span class="mono text-sky-300">${esc(g.commit)}</span> ${g.dirty?'<span class="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-300">uncommitted edits</span>':''}</div><div class="text-xs text-slate-500 mt-1">${esc(g.subject)} · ${esc(g.author)}, ${esc(g.when)}</div>`
     : "Not a git checkout inside the container.";
   const c = await api("/ci");
   const col = c.conclusion==="success"?"text-emerald-400":c.conclusion==="failure"?"text-red-400":"text-amber-300";
   $("#ci").innerHTML = c.available
-    ? `<div>Latest run: <a class="text-sky-400 hover:underline" target="_blank" href="${esc(c.url)}">${esc(c.name)}</a> <b class="${col}">${esc(c.conclusion||c.status)}</b></div><div class="text-xs mt-1">${esc(c.repo)} @ ${esc(c.sha)}</div>`
+    ? `<div class="text-slate-300">Latest run: <a class="text-sky-400 hover:text-sky-300" target="_blank" href="${esc(c.url)}">${esc(c.name)}</a> <b class="font-medium ${col}">${esc(c.conclusion||c.status)}</b></div><div class="text-xs text-slate-500 mt-1">${esc(c.repo)} @ ${esc(c.sha)}</div>`
     : esc(c.hint || "CI status unavailable");
 }
 refresh(); setInterval(refresh, 2000); side(); setInterval(side, 20000);
